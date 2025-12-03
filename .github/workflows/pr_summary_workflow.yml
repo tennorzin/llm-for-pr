@@ -1,0 +1,36 @@
+name: 🤖 Gemini PR Summarizer Agent
+
+on:
+  # This event acts as the webhook listener, triggering on PR lifecycle changes
+  pull_request:
+    types: [opened, reopened, synchronize] # Runs when PR is created or updated
+
+jobs:
+  summarize_pr:
+    runs-on: ubuntu-latest
+    
+    # Grant permissions for the script to read the code and post comments
+    permissions:
+      contents: read
+      pull-requests: write 
+
+    steps:
+      - name: ⬇️ Checkout Repository Code
+        uses: actions/checkout@v4
+        
+      - name: 🐍 Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: 📦 Install Python Dependencies
+        run: pip install google-genai PyGithub requests
+        
+      - name: 🧠 Run Gemini Summarization Agent
+        # Environment variables inject necessary data from the GitHub webhook payload
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          REPO_FULL_NAME: ${{ github.repository }} 
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        run: python pr_summary_agent.py
