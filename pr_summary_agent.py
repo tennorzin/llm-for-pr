@@ -26,8 +26,17 @@ GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 PR_NUMBER = os.environ.get("PR_NUMBER")
 REPO_FULL_NAME = os.environ.get("REPO_FULL_NAME")
 
-if not all([GEMINI_API_KEY, GITHUB_TOKEN, PR_NUMBER, REPO_FULL_NAME]):
-    print("Error: Missing required environment variables.")
+if not GEMINI_API_KEY:
+    print("Error: Missing required environment variables.1")
+    sys.exit(1)
+if not GITHUB_TOKEN:
+    print("Error: Missing required environment variables.2")
+    sys.exit(1)
+if not PR_NUMBER:
+    print("Error: Missing required environment variables.3")
+    sys.exit(1)
+if not REPO_FULL_NAME:
+    print("Error: Missing required environment variables.4")
     sys.exit(1)
 
 try:
@@ -123,3 +132,4 @@ if __name__ == "__main__":
 
     # 4. Post the final review
     post_review(repo_obj, PR_NUMBER, final_review)
+
