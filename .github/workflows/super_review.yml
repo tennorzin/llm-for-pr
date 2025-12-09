@@ -52,4 +52,5 @@ jobs:
           REPO_FULL_NAME: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          
+          # The file paths now align exactly with the Semgrep action output:
+          python pr_review_agent_final.py pr_diff.patch analysis_output/semgrep_output.json
