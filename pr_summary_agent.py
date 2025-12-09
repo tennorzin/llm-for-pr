@@ -1,133 +1,180 @@
 import os
 import sys
+import json
 import requests
-from github import Github
+from github import Github # Added for posting review comments
 from google import genai
 
-# --- Configuration & Environment Setup ---
+# --- Environment Variables and Constants ---
 
-# LLM Model Choice: Fast and cost-effective for summarization
-GEMINI_MODEL = 'gemini-2.5-flash'  
+# Retrieve critical environment variables
+api_key = os.getenv("GEMINI_API_KEY")
+github_token = os.getenv("GITHUB_TOKEN")
+repo_full_name = os.getenv("REPO_FULL_NAME") # e.g., 'owner/repo'
 
-# Persona and task definition for the model
-SYSTEM_PROMPT = (
-    "You are an expert technical editor and PR summarizer. Your goal is to provide a "
-    "concise, structured summary of the Pull Request (PR) based on the provided code diff. "
-    "Your response must focus on the following:\n"
-    "1. **Intent:** What problem does this PR solve?\n"
-    "2. **Key Changes:** List 3-5 major files/functions modified.\n"
-    "3. **Risk Level:** Assign a risk of LOW, MEDIUM, or HIGH based on the complexity and scope.\n"
-    "Respond ONLY in clear Markdown format, using headers as listed."
-)
-
-# Load environment variables passed from GitHub Actions
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-PR_NUMBER = os.environ.get("PR_NUMBER")
-REPO_FULL_NAME = os.environ.get("REPO_FULL_NAME")
-
-# Basic validation
-REQUIRED_ENVS = {
-    "GEMINI_API_KEY": GEMINI_API_KEY,
-    "GITHUB_TOKEN": GITHUB_TOKEN,
-    "PR_NUMBER": PR_NUMBER,
-    "REPO_FULL_NAME": REPO_FULL_NAME
-}
-missing_envs = [name for name, value in REQUIRED_ENVS.items() if not value]
-
-if missing_envs:
-    print(f"Error: Missing core environment variables: {', '.join(missing_envs)}. Cannot proceed.")
-    sys.exit(1)
 try:
-    PR_NUMBER = int(PR_NUMBER)
-except ValueError:
-    print("Error: PR_NUMBER is not a valid integer.")
-    sys.exit(1)
+    pr_number = int(os.getenv("PR_NUMBER"))
+except (TypeError, ValueError):
+    pr_number = None
 
-# --- Core Functions ---
+semgrep_config = os.getenv("SEMGREP_CONFIG", "auto")
+GEMINI_MODEL = "gemini-2.5-flash"
 
-def fetch_pr_diff():
-    """
-    Fetches the raw unified diff for the Pull Request using the GitHub REST API.
-    """
-    diff_url = f"https://api.github.com/repos/{REPO_FULL_NAME}/pulls/{PR_NUMBER}"
+
+# --- Command Line Inputs ---
+
+# Inputs passed from the CI runner (GitHub Actions run command)
+diff_path = sys.argv[1] if len(sys.argv) > 1 else None
+semgrep_path = sys.argv[2] if len(sys.argv) > 2 else None
+
+
+# --- Input Reading Functions ---
+
+def read_inputs():
+    """Reads the Git diff and Semgrep JSON output files."""
     
-    headers = {
-        'Authorization': f'token {GITHUB_TOKEN}', 
-        'Accept': 'application/vnd.github.v3.diff'
-    }
-    
-    try:
-        response = requests.get(diff_url, headers=headers)
-        response.raise_for_status() # Raises HTTPError if the status is 4xx or 5xx
-        return response.text
-    except requests.exceptions.RequestException as e:
-        return f"Error fetching diff from GitHub API: {e}"
+    diff_content = ""
+    if diff_path and os.path.exists(diff_path):
+        with open(diff_path, "r", encoding="utf-8") as f:
+            diff_content = f.read()
 
-def generate_summary(diff_content):
-    """
-    Sends the diff content to the Gemini API for summarization.
-    """
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        # Construct the contents array with the system prompt and the diff
-        contents = [
-            {"role": "user", "parts": [
-                {"text": SYSTEM_PROMPT},
-                {"text": f"Analyze the following Git Diff:\n\n```diff\n{diff_content}\n```"}
-            ]}
-        ]
-        
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=contents
-        )
-        return response.text
+    if len(diff_content) < 10:
+        print("Diff missing or too small. Exiting.")
+        sys.exit(0)
 
-    except Exception as e:
-        # Catch and report any API-related failures (e.g., rate limits)
-        return f"Error calling Gemini API: {e}"
+    semgrep_json = {}
+    if semgrep_path and os.path.exists(semgrep_path):
+        try:
+            with open(semgrep_path, "r", encoding="utf-8") as f:
+                semgrep_json = json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not parse Semgrep JSON: {e}")
+            semgrep_json = {"error": str(e)}
+
+    return diff_content, semgrep_json
+
+
+# --- GitHub Posting Logic ---
 
 def post_review(review_text):
-    """
-    Posts the generated summary as a comment on the Pull Request.
-    """
+    """Posts the generated review as a comment on the Pull Request."""
+    
+    if not (github_token and repo_full_name and pr_number):
+        print("Error: Missing GitHub token or PR metadata. Cannot post review.")
+        print(f"Generated Review:\n{review_text}")
+        return
+
     try:
-        # Initialize PyGithub client using the Actions token
-        github_client = Github(GITHUB_TOKEN)
-        repo_obj = github_client.get_repo(REPO_FULL_NAME)
-        pr = repo_obj.get_pull(PR_NUMBER)
+        # Initialize PyGithub client
+        github_client = Github(github_token)
+        repo_obj = github_client.get_repo(repo_full_name)
+        pr = repo_obj.get_pull(pr_number)
         
-        # Add a clear header for the bot's comment
-        final_comment = f"## 🤖 Gemini Automated PR Summary\n\n{review_text}"
-        
+        header = f"## Automated Gemini Code Review for PR #{pr_number}\n\n"
+        final_comment = header + review_text
+
         pr.create_issue_comment(final_comment)
-        print("Successfully posted PR summary to GitHub.")
+        print("Successfully posted consolidated review to Pull Request.")
 
     except Exception as e:
         print(f"Error posting comment to GitHub: {e}")
+        # In case of posting failure, print review to logs anyway
+        print(f"Generated Review (not posted):\n{review_text}")
         sys.exit(1)
 
 
-# --- Execution Start ---
+# --- LLM System Prompt and Execution ---
 
-if __name__ == "__main__":
-    print(f"Starting review process for PR #{PR_NUMBER} in {REPO_FULL_NAME}...")
+# **IMPORTANT:** This is the persona definition, passed separately to the API.
+# It MUST be a concise, instruction-only string.
+LLM_PERSONA = "You are an expert technical PR reviewer. Your tone is professional and focused on actionable risks. Analyze the provided Git diff and Semgrep metadata to produce a structured review."
+
+def create_mega_prompt(diff_content, semgrep_json):
+    """
+    Constructs the main content (User Message) sent to the LLM.
+    """
     
-    # 1. Fetch data
-    pr_diff = fetch_pr_diff()
+    # Extract only the findings array to save tokens and simplify LLM input
+    findings = semgrep_json.get("results", [])
+
+    # We use a markdown template for the LLM to fill in
+    # This structure must exactly match the desired output below.
+    content_template = f"""
+### DIFF
+```diff
+{diff_content}
+```
+
+### SEMGREP FINDINGS
+Total Findings: {len(findings)}
+
+```json
+{json.dumps(findings, indent=2, sort_keys=True)}
+```
+
+### REQUIRED OUTPUT FORMAT (Strictly adhere to this structure. Max 140 words total.)
+
+### Summary
+- 2–3 bullets detailing exact PR changes.
+
+### Why It Matters
+- Real reasoning based only on diff and security findings.
+
+### Issues
+- Synthesized list of real issues found in diff and tool output.
+
+### Changes Required
+- 1–2 essential fixes that need to be made before merging.
+
+RULES:
+- Do not output the markdown headers *inside* the bullet points.
+- No hallucinations (use only diff and findings).
+"""
+    return content_template
+
+
+def call_gemini_api(mega_prompt):
+    """Calls the Gemini API with the structured prompt and persona."""
     
-    if pr_diff.startswith("Error"):
-        post_review(f"🚨 **PR Agent Failure:** Could not retrieve PR changes.\nDetails: {pr_diff}")
+    if not api_key:
+        print("Error: GEMINI_API_KEY is not set.")
         sys.exit(1)
         
-    if not pr_diff or "No such file or directory" in pr_diff:
-        post_review("✅ **PR Agent Summary:** No significant code changes detected to summarize.")
-        sys.exit(0)
-
-    # 2. Generate summary
-    summary = generate_summary(pr_diff)
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        # We separate the content into the system instruction and the user message
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            system_instruction=LLM_PERSONA,
+            contents=[
+                {"role": "user", "parts": [{"text": mega_prompt}]}
+            ]
+        )
+        return response.text.strip()
     
-    # 3. Post result
-    post_review(summary)
+    except Exception as e:
+        print(f"Error during Gemini API call: {e}")
+        return f"Gemini API Call Failed. Check service connection or API key validity."
+
+
+# --- Main Execution ---
+
+if __name__ == "__main__":
+    
+    # 1. Read Inputs
+    diff_content, semgrep_json = read_inputs()
+
+    # 2. Construct Prompt
+    # We now send the full content structure, including the diff and findings, as the user message.
+    mega_prompt = create_mega_prompt(diff_content, semgrep_json)
+
+    # 3. Call LLM
+    review_output = call_gemini_api(mega_prompt)
+
+    # 4. Post Output to GitHub
+    post_review(review_output)
+
+    # For debugging in the CI runner
+    print("\n--- Final Review Output ---\n")
+    print(review_output)
