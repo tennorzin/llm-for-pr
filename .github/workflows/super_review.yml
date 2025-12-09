@@ -1,6 +1,5 @@
 name: Automated PR Reviewer
 
-# Triggers when a Pull Request is opened, reopened, or synchronized (new commit push)
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -9,7 +8,6 @@ jobs:
   review_and_summarize:
     runs-on: ubuntu-latest
 
-    # Set necessary permissions for reading code and writing a comment
     permissions:
       contents: read 
       pull-requests: write 
@@ -24,37 +22,34 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Dependencies
-        # Install the Python libraries + Semgrep and gh CLI tools
+      - name: Install Python Dependencies
+        # Only install the Python libraries needed for API interaction and GitHub client
         run: |
-          pip install google-genai PyGithub requests
-          sudo apt-get update && sudo apt-get install -y semgrep gh jq
+          pip install google-genai PyGithub requests gh jq 
 
       - name: Fetch PR Diff
         # Use GitHub CLI (gh) to fetch the unified diff and save it to a file
         run: gh pr diff ${{ github.event.pull_request.number }} --patch > pr_diff.patch
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use default token for gh CLI
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
 
+      # --- FIXED STATIC ANALYSIS PHASE ---
       - name: Run Semgrep and Save JSON
-        # Run Semgrep analysis across the entire checked-out repository code
-        run: |
-          mkdir -p analysis_output
-          # Run Semgrep, output JSON to the specified path. 
-          # || true prevents the workflow from failing if Semgrep finds issues.
-          semgrep --config auto --json > analysis_output/semgrep_output.json || true
-        env:
-          SEMGREP_CONFIG: auto
+        # Use the official Semgrep GitHub Action for guaranteed availability
+        uses: returntocorp/semgrep-action@v1
+        id: semgrep_scan
+        with:
+          config: auto
+          output: analysis_output/semgrep_output.json
+          # Set the output path exactly where your Python script expects it
+          fail_on_error: false # Ensures the workflow continues even if security findings are present
 
       - name: Generate and Post PR Review
         # This step executes the Python script, passing the file paths as arguments.
-        # The Python script handles the Gemini API call and posts the comment directly.
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Essential Metadata for PyGithub logic:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_FULL_NAME: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Pass diff path (sys.argv[1]) and semgrep output path (sys.argv[2])
-          python pr_summary_agent.py pr_diff.patch analysis_output/semgrep_output.json
+          
