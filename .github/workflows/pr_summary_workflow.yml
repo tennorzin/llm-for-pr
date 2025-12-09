@@ -39,7 +39,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate PR Summary & Metadata
-        id: pr_summary_agent
+        id: llm
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -78,4 +78,5 @@ jobs:
           message: |
             ##  Automated PR Review
             ${{ steps.llm.outputs.summary }}
+
 
