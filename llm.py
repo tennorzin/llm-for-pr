@@ -98,10 +98,6 @@ Generate the automated PR review summary based *only* on the input data above.
 
 **Output Format (use markdown headings and bullets):**
 
-## Summary
-- [Bullet 1: Main code change]
-- [Bullet 2: Secondary code change]
-
 ## Why It Matters
 [A short paragraph explaining the impact (e.g., bug fix, new feature, performance)]
 
@@ -110,6 +106,10 @@ Generate the automated PR review summary based *only* on the input data above.
 
 ## Changes Required
 [List 1-2 essential, specific fixes needed for approval. If none, state: 'No immediate changes required.']
+
+## Summary
+- [Bullet 1: Main code change]
+- [Bullet 2: Secondary code change]
 """
 
 # --- CALL GEMINI ---
@@ -128,3 +128,4 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
