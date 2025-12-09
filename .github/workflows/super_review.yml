@@ -32,7 +32,23 @@ jobs:
           semgrep scan --config=p/ci --json --output analysis_output/semgrep_output.json || true
         env:
           SEMGREP_CONFIG: p/ci
+  jobs:
+  review_and_summarize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
 
+      # 1. Add this step for explicit GH CLI setup
+      - name: Setup GitHub CLI
+        uses: actions/setup-gh@v1.0.0 # This ensures the tool is available and authenticated
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      # 2. (Existing Step)
+      - name: Checkout PR code
+        uses: actions/checkout@v4
 
       - name: Fetch PR Diff
         run: gh pr diff ${{ github.event.pull_request.number }} --patch > pr_diff.patch
@@ -80,5 +96,6 @@ jobs:
           message: |
             ## Automated PR Review
             ${{ steps.llm.outputs.summary }}
+
 
 
