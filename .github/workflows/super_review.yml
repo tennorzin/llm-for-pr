@@ -1,5 +1,6 @@
 name: Automated PR Reviewer
 
+# Triggers on new PRs, or when code is pushed to an existing open PR
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -8,6 +9,7 @@ jobs:
   review_and_summarize:
     runs-on: ubuntu-latest
 
+    # Necessary permissions for checking out code, fetching diff, and posting comments
     permissions:
       contents: write
       pull-requests: write
@@ -16,6 +18,9 @@ jobs:
 
       - name: Checkout PR code
         uses: actions/checkout@v4
+        # Fetch depth 0 gets the entire history needed for Semgrep and other tools
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -26,35 +31,38 @@ jobs:
         run: |
           pip install google-genai PyGithub semgrep requests
 
+      # --- 1. RUN STATIC ANALYSIS ---
       - name: Run Semgrep
         run: |
           mkdir -p analysis_output
+          # Run Semgrep with CI configuration, outputting JSON.
+          # '|| true' ensures the workflow doesn't fail if Semgrep finds issues (which returns non-zero exit code).
           semgrep scan --config=p/ci --json --output analysis_output/semgrep_output.json || true
         env:
-          SEMGREP_CONFIG: p/ci
-  jobs:
-  review_and_summarize:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
+          # This variable is now redundant as --config=p/ci is used, but kept for context.
+          SEMGREP_CONFIG: p/ci 
 
-      # 1. Add this step for explicit GH CLI setup
-      - name: Setup GitHub CLI
-        uses: actions/setup-gh@v1.0.0 # This ensures the tool is available and authenticated
+      # --- 2. FETCH PR DIFF (FIXED: Using API for reliability) ---
+      - name: Fetch PR Diff using API
+        id: fetch_diff
+        uses: actions/github-script@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
-      # 2. (Existing Step)
-      - name: Checkout PR code
-        uses: actions/checkout@v4
+          # The GITHUB_TOKEN is automatically available
+          script: |
+            const pr_number = context.issue.number;
+            // Fetches the diff/patch content directly from the API endpoint
+            const diff = await github.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr_number,
+              headers: {
+                'Accept': 'application/vnd.github.v3.patch' // Request the patch format
+              }
+            });
+            // Write the patch content to the file
+            require('fs').writeFileSync('pr_diff.patch', diff.data);
 
-      - name: Fetch PR Diff
-        run: gh pr diff ${{ github.event.pull_request.number }} --patch > pr_diff.patch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      # --- 3. GENERATE LLM SUMMARY ---
       - name: Generate PR Summary & Metadata
         id: llm
         env:
@@ -62,40 +70,52 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SEMGREP_CONFIG: auto
         run: |
+          # Pass the diff and semgrep output paths to your Python script
           OUTPUT=$(python llm.py pr_diff.patch analysis_output/semgrep_output.json)
+          
+          # Use GITHUB_OUTPUT to pass the LLM's summary text to the next step
           {
             echo "summary<<EOF"
             echo "$OUTPUT"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # --- 4. SAVE SEMGREP REPORT TO MAIN BRANCH ---
+      # NOTE: This step checks out 'main' and pushes to it, which requires a token 
+      # with write access and might be restricted on protected branches.
       - name: Save Semgrep Report to MAIN branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Fetch main branch and switch to it to commit the report
           git fetch origin main
           git checkout main
 
           mkdir -p semgrep_reports
-          DATE=$(date +"%Y/%m/%d")
+          DATE=$(date +"%Y%m%d") # Use YYYYMMDD for easier sorting
           TIME=$(date +"%H-%M-%S")
 
           # Pretty print JSON using jq
+          # Use the PR number, Date, and Time in the filename
           jq '.' analysis_output/semgrep_output.json \
             > semgrep_reports/pr${{ github.event.pull_request.number }}_${DATE}_${TIME}.json
 
           git add semgrep_reports/
           git commit -m "Add Semgrep metadata for PR ${{ github.event.pull_request.number }}"
+          # Push the commit to the main branch
           git push origin main
 
 
+      # --- 5. POST REVIEW COMMENT ---
       - name: Post PR Review Comment
         uses: thollander/actions-comment-pull-request@v3
         with:
+          # Use the summary output from the LLM step
           message: |
-            ## Automated PR Review
+            ##  Automated PR Review
+            
+            This review was generated by an expert AI model combining the code diff 
+            and static analysis results.
+            
             ${{ steps.llm.outputs.summary }}
-
-
-
