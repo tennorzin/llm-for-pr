@@ -68,7 +68,7 @@ jobs:
           SEMGREP_CONFIG: auto
         run: |
           # Pass the diff and semgrep output paths to your Python script
-          OUTPUT=$(python llm.py pr_diff.patch analysis_output/semgrep_output.json)
+          OUTPUT=$(python llm.py pr_diff.patch analysis_output/semgrep_output.json 2>&1)
           
           # Use GITHUB_OUTPUT to pass the LLM's summary text to the next step
           {
@@ -110,3 +110,4 @@ jobs:
             and static analysis results.
             
             ${{ steps.llm.outputs.summary }}
+
