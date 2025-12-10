@@ -1,3 +1,0 @@
-google-genai
-PyGithub
-requests
