@@ -88,7 +88,7 @@ meta_file = "analysis_output/semgrep_metadata.json"
 with open(meta_file, "w", encoding="utf-8") as f:
     json.dump(analysis_metadata, f, indent=2)
 
-print(f"Saved Semgrep metadata → {meta_file}")
+#print(f"Saved Semgrep metadata → {meta_file}")
 
 # --- GEMINI PROMPTS ---
 
@@ -114,7 +114,7 @@ Your goal is to analyze the provided PR diff and static analysis data, and gener
 UserPrompt = """
 Generate the automated PR review summary based *only* on the input data above.
 
-**Output Format (START IMMEDIATELY with '## Why It Matters' and use markdown headings in this exact order):**
+**Output Format (START IMMEDIATELY with '## Why It Matters', nothing before this and use markdown headings in this exact order):**
 
 ## Why It Matters
 [A short paragraph explaining the impact]
@@ -162,6 +162,7 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
 
 
