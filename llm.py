@@ -144,7 +144,7 @@ try:
     }
 ]
 
-    ]
+    
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
@@ -162,5 +162,6 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
 
