@@ -108,7 +108,7 @@ Your goal is to analyze the provided PR diff and static analysis data, and gener
 - Your review must adhere *strictly* to the output format provided in the User Prompt.
 - Do not invent information.
 - Do not use any introductory sentences.
-- Do not mention any tool names.
+- Do not mention any tool names(semgrep, gemini, etc).
 """
 
 UserPrompt = """
@@ -162,6 +162,7 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
 
 
