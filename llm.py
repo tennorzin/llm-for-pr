@@ -100,7 +100,7 @@ Your goal is to analyze the provided PR diff and static analysis data, and gener
 - **PR Diff:**
 {diff_content}
 
-- **Semgrep Metadata (relevant findings included):**
+- **Static Analysis  Metadata (relevant findings included):**
 {json.dumps(analysis_metadata, indent=2)}
 
 ### CONSTRAINTS
@@ -162,6 +162,7 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
 
 
