@@ -1,6 +1,5 @@
 name: Automated PR Reviewer
 
-# Triggers on new PRs, or when code is pushed to an existing open PR
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -12,10 +11,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      # The rest of the job relies on these permissions.
 
     steps:
-
       - name: Checkout PR code
         uses: actions/checkout@v4
         with:
@@ -26,7 +23,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Dependencies
+      - name: Install System Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Install Python Dependencies
         run: |
           pip install google-genai PyGithub semgrep requests
 
@@ -35,65 +37,51 @@ jobs:
         run: |
           mkdir -p analysis_output
           semgrep scan --config=p/ci --json --output analysis_output/semgrep_output.json || true
-        env:
-          SEMGREP_CONFIG: p/ci 
 
-      # --- 2. FETCH PR DIFF (MODIFIED WITH JS ERROR HANDLING) ---
+      # --- 2. FETCH PR DIFF ---
       - name: Fetch PR Diff using API
-        id: fetch_diff
         uses: actions/github-script@v7
         with:
-          # Note: We need to use 'core.setFailed' from @actions/core, which is implicitly available
           script: |
             const pr_number = context.issue.number;
-
             try {
               const diff = await github.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: pr_number,
-                headers: {
-                  'Accept': 'application/vnd.github.v3.patch'
-                }
+                headers: { 'Accept': 'application/vnd.github.v3.patch' }
               });
 
-              // Check if the diff data is valid and non-empty
               if (diff.data && diff.data.length > 0) {
                 require('fs').writeFileSync('pr_diff.patch', diff.data);
-                console.log('Successfully created pr_diff.patch with content.');
+                console.log('pr_diff.patch created.');
               } else {
-                // Fail if the API returns a valid response but the diff payload is empty
-                core.setFailed("GitHub API returned empty diff data for the PR. Check if the PR has code changes.");
+                core.setFailed("PR diff is empty.");
               }
             } catch (error) {
-              // Catch any network or authentication errors from the GitHub API call
-              core.setFailed(`Failed to fetch PR diff from API: ${error.message}`);
+              core.setFailed(`Diff fetch failed: ${error.message}`);
             }
 
-      # --- 3. GENERATE LLM SUMMARY ---
+      # --- 3. GENERATE LLM SUMMARY (FULL VISIBILITY) ---
       - name: Generate PR Summary & Metadata
         id: llm
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO_FULL_NAME: ${{ github.repository }} 
-          SEMGREP_CONFIG: auto
         run: |
-          # 🚨 FINAL ATTEMPT AT ERROR VISIBILITY: Use -u and python -c to bypass potential environment buffering or execution issues 🚨
-          PYTHON_COMMAND="import subprocess; result = subprocess.run(['python', '-u', 'llm.py', 'pr_diff.patch', 'analysis_output/semgrep_output.json'], capture_output=True, text=True); print(result.stdout); print(result.stderr, file=sys.stderr); sys.exit(result.returncode);"
-          
-          OUTPUT=$(python -c "$PYTHON_COMMAND" 2>&1)
-          
-          # Use GITHUB_OUTPUT to pass the LLM's summary text to the next step
-          {
-            echo "summary<<EOF"
-            echo "$OUTPUT"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          set -uxo pipefail
+          ls -la
+          ls -la analysis_output || true
+          python -u llm.py pr_diff.patch analysis_output/semgrep_output.json 2>&1 | tee llm.log
+          EXIT_CODE=${PIPESTATUS[0]}
 
-      # --- 4. SAVE SEMGREP REPORT TO MAIN BRANCH ---
-      # (Still carries a risk of permission failure on git push)
+          echo "summary<<EOF" >> "$GITHUB_OUTPUT"
+          cat llm.log >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          exit $EXIT_CODE
+
+      # --- 4. SAVE SEMGREP REPORT ---
       - name: Save Semgrep Report to MAIN branch
         run: |
           git config user.name "github-actions[bot]"
@@ -113,16 +101,10 @@ jobs:
           git commit -m "Add Semgrep metadata for PR ${{ github.event.pull_request.number }}"
           git push origin main
 
-
       # --- 5. POST REVIEW COMMENT ---
       - name: Post PR Review Comment
         uses: thollander/actions-comment-pull-request@v3
         with:
           message: |
             ## Automated PR Review
-            
-            This review was generated by an expert AI model combining the code diff 
-            and static analysis results.
-            
             ${{ steps.llm.outputs.summary }}
-
