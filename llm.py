@@ -96,7 +96,7 @@ SystemPrompt = f"""
 You are an expert, meticulous technical Pull Request (PR) reviewer.
 Your goal is to analyze the provided PR diff and static analysis data, and generate a concise, structured review summary.
 
-### INPUT DATA
+### INPUT DATA(do not print this block in the pr review summary)
 - **PR Diff:**
 {diff_content}
 
@@ -162,6 +162,7 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
 
 
