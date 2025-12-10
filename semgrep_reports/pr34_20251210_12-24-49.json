@@ -1,0 +1,90 @@
+{
+  "version": "1.145.0",
+  "results": [],
+  "errors": [],
+  "paths": {
+    "scanned": [
+      ".gitattributes",
+      ".github/workflows/super_review.yml",
+      "llm.py",
+      "new_pr.py",
+      "readme.md",
+      "requirement.txt",
+      "semgrep_reports/pr32_20251210_06-33-07.json",
+      "semgrep_reports/pr33_20251210_12-18-30.json"
+    ]
+  },
+  "time": {
+    "rules": [],
+    "rules_parse_time": 0.17692804336547852,
+    "profiling_times": {
+      "config_time": 1.4173908233642578,
+      "core_time": 0.42006516456604004,
+      "ignores_time": 0.00025081634521484375,
+      "total_time": 1.8380286693572998
+    },
+    "parsing_time": {
+      "total_time": 0.0,
+      "per_file_time": {
+        "mean": 0.0,
+        "std_dev": 0.0
+      },
+      "very_slow_stats": {
+        "time_ratio": 0.0,
+        "count_ratio": 0.0
+      },
+      "very_slow_files": []
+    },
+    "scanning_time": {
+      "total_time": 0.021851778030395508,
+      "per_file_time": {
+        "mean": 0.001150093580547132,
+        "std_dev": 0.000011430981228883951
+      },
+      "very_slow_stats": {
+        "time_ratio": 0.0,
+        "count_ratio": 0.0
+      },
+      "very_slow_files": []
+    },
+    "matching_time": {
+      "total_time": 0.0,
+      "per_file_and_rule_time": {
+        "mean": 0.0,
+        "std_dev": 0.0
+      },
+      "very_slow_stats": {
+        "time_ratio": 0.0,
+        "count_ratio": 0.0
+      },
+      "very_slow_rules_on_files": []
+    },
+    "tainting_time": {
+      "total_time": 0.0,
+      "per_def_and_rule_time": {
+        "mean": 0.0,
+        "std_dev": 0.0
+      },
+      "very_slow_stats": {
+        "time_ratio": 0.0,
+        "count_ratio": 0.0
+      },
+      "very_slow_rules_on_defs": []
+    },
+    "fixpoint_timeouts": [],
+    "prefiltering": {
+      "project_level_time": 0.0,
+      "file_level_time": 0.0,
+      "rules_with_project_prefilters_ratio": 0.0,
+      "rules_with_file_prefilters_ratio": 0.9016393442622951,
+      "rules_selected_ratio": 0.09836065573770492,
+      "rules_matched_ratio": 0.09836065573770492
+    },
+    "targets": [],
+    "total_bytes": 0,
+    "max_memory_bytes": 241135296
+  },
+  "engine_requested": "OSS",
+  "skipped_rules": [],
+  "profiling_results": []
+}
