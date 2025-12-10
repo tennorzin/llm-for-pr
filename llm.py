@@ -113,14 +113,15 @@ Your goal is to analyze the provided PR diff and static analysis data, and gener
 
 UserPrompt = """
 Generate the automated PR review summary based *only* on the input data above.
+give the content of the titles in bullet points
 
-**Output Format (START IMMEDIATELY with '## Why It Matters', nothing before this and use markdown headings in this exact order):**
+**Output Format (START IMMEDIATELY with '## Why It Matters' and use markdown headings in this exact order):**
 
 ## Why It Matters
-[A short paragraph explaining the impact]
+[List 1–2 essential impact and explain why this new Pull Request is needed in this repository. If none, state: 'no need of the new pull request in this repository']
 
 ## Issues
-[State any security/logic issues found. If none, state: 'No critical issues found.']
+[State any security/logic issues found in 2-3 bullet points. If none, state: 'No critical issues found.']
 
 ## Changes Required
 [List 1–2 essential fixes. If none, state: 'No immediate changes required.']
@@ -162,6 +163,7 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
 
 
