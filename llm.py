@@ -118,13 +118,13 @@ give the content of the titles in bullet points
 **Output Format (START IMMEDIATELY with '## Why It Matters' and use markdown headings in this exact order):**
 
 ## Why It Matters
-[List 1–2 essential impact and explain why this new Pull Request is needed in this repository. If none, state: 'no need of the new pull request in this repository']
+[List essential impact and explain why this new Pull Request is needed in this repository in 1-2 bullet points. If none, state: 'no need of the new pull request in this repository']
 
 ## Issues
 [State any security/logic issues found in 2-3 bullet points. If none, state: 'No critical issues found.']
 
 ## Changes Required
-[List 1–2 essential fixes. If none, state: 'No immediate changes required.']
+[List essential fixes in 1-2 bullet points. If none, state: 'No immediate changes required.']
 
 ## Summary
 - [Bullet 1]
@@ -163,6 +163,7 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
 
 
