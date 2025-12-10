@@ -136,8 +136,14 @@ client = genai.Client(api_key=api_key)
 
 try:
     contents = [
-        {"role": "system", "parts": [{"text": SystemPrompt}]},
-        {"role": "user", "parts": [{"text": UserPrompt}]}
+    {
+        "role": "user",
+        "parts": [{
+            "text": SystemPrompt + "\n\n" + UserPrompt
+        }]
+    }
+]
+
     ]
 
     response = client.models.generate_content(
@@ -156,4 +162,5 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
 
