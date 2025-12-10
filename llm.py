@@ -143,7 +143,8 @@ try:
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=contents,
-        config={"response_mime_type": "text/markdown"}
+        config={"response_mime_type": "text/plain"}
+
     )
 
     print(response.text.strip())
@@ -155,3 +156,4 @@ except APIError as e:
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
     sys.exit(1)
+
